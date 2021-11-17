@@ -35,7 +35,7 @@ public class LoopService {
         );
     }
 
-    @Scheduled(fixedDelay = 400000) //400000
+    @Scheduled(fixedDelay = 400000)
     public void mainLoop() {
         initRequests();
 
@@ -51,7 +51,6 @@ public class LoopService {
 
     private static boolean flag = true;
 
-    @Transactional
     public void initRequests() {
 
         if (flag) {

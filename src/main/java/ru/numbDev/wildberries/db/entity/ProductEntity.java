@@ -22,20 +22,12 @@ public class ProductEntity {
     @Column(name = "product_id")
     private Long productId;
 
-    @Column(name = "product_name", length = 2000)
-    private String productName;
-
-    @Column(name = "brand", length = 2000)
-    private String brand;
-
-    @Column(name = "brand_id")
-    private long brandId;
-
-    @Column(name = "page_json", length = 200000)
-    private String pageJson;
+    @Fetch(value = FetchMode.SUBSELECT)
+    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, mappedBy = "product", orphanRemoval = true)
+    private List<MetaEntity> metaData = new ArrayList<>();
 
     @Fetch(value = FetchMode.SUBSELECT)
-    @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL, mappedBy = "product", orphanRemoval = true)
+    @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, mappedBy = "product", orphanRemoval = true)
     private List<StatisticEntity> statistics = new ArrayList<>();
 
     @ManyToMany
@@ -44,7 +36,7 @@ public class ProductEntity {
             inverseJoinColumns = @JoinColumn(name = "request_id", referencedColumnName = "id"))
     private Set<RequestEntity> requests = new HashSet<>();
 
-    @ManyToMany
+    @ManyToMany(cascade = CascadeType.ALL)
     @JoinTable(name = "product_nomenclature",
             joinColumns = @JoinColumn(name = "product_id", referencedColumnName = "id"),
             inverseJoinColumns = @JoinColumn(name = "nomenclature_id", referencedColumnName = "id"))

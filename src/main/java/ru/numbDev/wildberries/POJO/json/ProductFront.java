@@ -15,9 +15,15 @@ public class ProductFront {
     private String productName;
     private String brand;
     private List<Statistic> statistics = new ArrayList<>();
+    private List<HistoryMeta> historyMetas = new ArrayList<>();
 
     public ProductFront addStatistics(List<Statistic> st) {
         statistics.addAll(st);
+        return this;
+    }
+
+    public ProductFront addHistoryMeta(List<HistoryMeta> hm) {
+        historyMetas.addAll(hm);
         return this;
     }
 }

@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.numbDev.wildberries.db.entity.MetaEntity;
 import ru.numbDev.wildberries.db.entity.ProductEntity;
 import ru.numbDev.wildberries.db.entity.RequestEntity;
 import ru.numbDev.wildberries.db.entity.StatisticEntity;
@@ -12,7 +13,9 @@ import ru.numbDev.wildberries.POJO.ParseResult;
 import ru.numbDev.wildberries.POJO.json.Product;
 import ru.numbDev.wildberries.util.Utils;
 
+import java.util.Comparator;
 import java.util.Date;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -108,14 +111,19 @@ public class WBService {
 
             if (product.getId() == null) {
                 product
-                        .setProductId(p.getProductId())
-                        .setProductName(p.getName())
-                        .setBrand(p.getBrand())
-                        .setBrandId(p.getBrandId())
-                        .setPageJson(p.getPage())
-                        .getRequests().add(request);
+                        .setProductId(p.getProductId());
             }
 
+            // Добавим запрос, по которому нашли продукт, по необходимости
+            addRequest(request, product);
+
+            // Добавим метаданные, по необходимости
+            addMetaDataToProduct(p, product);
+
+            // Свяжем номенклатуры
+            addNomenclatures(p.getNomenclatures(), product);
+
+            // Добавим статистику
             product.getStatistics().add(
                     new StatisticEntity()
                             .setProduct(product)
@@ -123,21 +131,78 @@ public class WBService {
                             .setPriceU(p.getPriceU())
                             .setRating(p.getRating())
                             .setSalePriceU(p.getSalePriceU())
-//                            .setCountOfProductType(p.getProductCount())
                             .setCreatedDate(new Date())
             );
-
-            // Добавляем запрос, если новый
-            var requestContains = product.getRequests()
-                    .stream()
-                    .anyMatch(r -> r.getId().equals(request.getId()));
-            if (!requestContains) {
-                product.getRequests().add(request);
-            }
 
             System.out.println(p.getProductId() + " : " + p.getSalesResult() + " : " + p.getBrand());
             return product;
         };
+    }
+
+    private void addRequest(RequestEntity request, ProductEntity product) {
+
+        // Добавляем запрос, если новый
+        var requestContains = product.getRequests()
+                .stream()
+                .anyMatch(r -> r.getId().equals(request.getId()));
+
+        if (!requestContains) {
+            product.getRequests().add(request);
+        }
+    }
+
+    private void addMetaDataToProduct(ParseResult p, ProductEntity product) {
+
+        // Создаем объект метаданных если:
+        // 1) Продукт новый и их нет вообще
+        // 2) Какие-либо данные, которые мы отслеживаем, изменились у последней версии
+        boolean isChangedMeta = product.getMetaData().isEmpty()
+                || product
+                .getMetaData()
+                .stream()
+                .max(Comparator.comparingInt(MetaEntity::getVersion))
+                .stream()
+                .anyMatch(m ->
+                        !m.getBrand().equalsIgnoreCase(p.getBrand()) ||
+                                !m.getProductName().equalsIgnoreCase(p.getName()) ||
+                                m.getBrandId() != p.getBrandId()
+                );
+
+        if (isChangedMeta) {
+            MetaEntity meta = new MetaEntity()
+                    .setProduct(product)
+                    .setProductName(p.getName())
+                    .setBrand(p.getBrand())
+                    .setBrandId(p.getBrandId())
+                    .setPageJson(p.getPage())
+                    .setVersion(
+                            product
+                                    .getMetaData()
+                                    .stream()
+                                    .map(MetaEntity::getVersion)
+                                    .max(Integer::compare)
+                                    .orElse(0)
+                    );
+
+            product.getMetaData().add(meta);
+        }
+    }
+
+    private void addNomenclatures(List<Long> nomenclatureIds, ProductEntity product) {
+
+        // Сохраним номенклатуру
+        for (Long nomenclature : nomenclatureIds) {
+            var entity = productRepository.findByProductId(nomenclature).orElseGet(ProductEntity::new);
+
+            // Ленивая инициализация продукта
+            // Инициализируем строчку с id продукта, данные по которому должны найти позже
+            if (entity.getProductId() == null) {
+                entity.setProductId(nomenclature);
+            }
+
+            // TODO дубликаты
+            product.getNomenclatures().add(entity);
+        }
     }
 
 }
