@@ -1,0 +1,10 @@
+#!/bin/bash
+./gradlew clean
+./gradlew bootJar
+docker rm --force wildberries
+docker image rm wildberries
+docker build -t wildberries --pull=true --file=Dockerfile  ./
+docker tag wildberries nagatoo/wildberries-stat:0.0.4
+docker push nagatoo/wildberries-stat:0.0.4
+kubectl delete --all pods --namespace=default
+kubectl run wildberries-stat --image=nagatoo/wildberries-stat:0.0.4 --port=8080 --generator=run/v1

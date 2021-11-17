@@ -1,0 +1,1 @@
+kubectl proxy --port=7777
