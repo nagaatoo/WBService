@@ -139,7 +139,7 @@ public class Utils {
 
                 return res;
             } catch (Exception e) {
-                System.out.println("error");
+                System.out.println("error: " + e.getMessage());
 
                 // Предполагаем, что 429-ая
                 threadPause(HOLD_TIME);

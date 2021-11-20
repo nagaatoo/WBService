@@ -3,7 +3,9 @@ package ru.numbDev.wildberries.POJO;
 import lombok.Data;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Data
 public class ParseResult {
@@ -16,7 +18,7 @@ public class ParseResult {
     private long salePriceU;
     private int rating;
     private int salesResult;
-    private List<Long> nomenclatures = new ArrayList<>();
+    private Set<Long> nomenclatures = new HashSet<>();
 
     private String page;
 

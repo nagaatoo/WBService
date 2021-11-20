@@ -20,7 +20,7 @@ public class MetaEntity {
     private Long id;
 
     // Объект продукта
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "product_id", referencedColumnName = "ID", nullable = false)
     @OnDelete(action = OnDeleteAction.NO_ACTION)
     private ProductEntity product;

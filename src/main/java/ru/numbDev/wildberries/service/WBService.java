@@ -8,14 +8,13 @@ import ru.numbDev.wildberries.db.entity.MetaEntity;
 import ru.numbDev.wildberries.db.entity.ProductEntity;
 import ru.numbDev.wildberries.db.entity.RequestEntity;
 import ru.numbDev.wildberries.db.entity.StatisticEntity;
+import ru.numbDev.wildberries.db.repository.MetaRepository;
 import ru.numbDev.wildberries.db.repository.ProductRepository;
 import ru.numbDev.wildberries.POJO.ParseResult;
 import ru.numbDev.wildberries.POJO.json.Product;
 import ru.numbDev.wildberries.util.Utils;
 
-import java.util.Comparator;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -24,12 +23,17 @@ public class WBService {
 
     private final static Logger log = LoggerFactory.getLogger(WBService.class);
 
+    // Буфер для номенклатур
+    private final Map<ProductEntity, Set<Long>> nomenclatureBuffer = new HashMap<>();
+
     private final Utils utils;
     private final ProductRepository productRepository;
+    private final MetaRepository metaRepository;
 
-    public WBService(Utils utils, ProductRepository productRepository) {
+    public WBService(Utils utils, ProductRepository productRepository, MetaRepository metaRepository) {
         this.utils = utils;
         this.productRepository = productRepository;
+        this.metaRepository = metaRepository;
     }
 
     // Основная логика
@@ -72,8 +76,11 @@ public class WBService {
                 .stream()
                 .map(buildWBData())
                 .parallel()
-                .map(mapWBData(request))
+                .map(buildEntity(request))
                 .collect(Collectors.toList());
+
+        // Добавим номенклатуры
+        addNomenclatures(entities);
 
         // Сохраняем отдельно
         productRepository.saveAll(entities);
@@ -105,7 +112,7 @@ public class WBService {
     }
 
     // Лямбда сохраняет в базу результат
-    private Function<ParseResult, ProductEntity> mapWBData(RequestEntity request) {
+    private Function<ParseResult, ProductEntity> buildEntity(RequestEntity request) {
         return (p) -> {
             var product = productRepository.findByProductId(p.getProductId()).orElseGet(ProductEntity::new);
 
@@ -120,8 +127,8 @@ public class WBService {
             // Добавим метаданные, по необходимости
             addMetaDataToProduct(p, product);
 
-            // Свяжем номенклатуры
-            addNomenclatures(p.getNomenclatures(), product);
+            // Запоминаем номенклатуры
+            nomenclatureBuffer.put(product, p.getNomenclatures());
 
             // Добавим статистику
             product.getStatistics().add(
@@ -184,24 +191,38 @@ public class WBService {
                                     .orElse(0)
                     );
 
-            product.getMetaData().add(meta);
+            meta.setProduct(product);
+            metaRepository.save(meta);
+            //            product.getMetaData().add(meta);
         }
     }
 
-    private void addNomenclatures(List<Long> nomenclatureIds, ProductEntity product) {
+    private void addNomenclatures(List<ProductEntity> products) {
 
-        // Сохраним номенклатуру
-        for (Long nomenclature : nomenclatureIds) {
-            var entity = productRepository.findByProductId(nomenclature).orElseGet(ProductEntity::new);
+        for (var es : nomenclatureBuffer.entrySet()) {
+            var product = es.getKey();
+            var nomenclaturesId = es.getValue();
 
-            // Ленивая инициализация продукта
-            // Инициализируем строчку с id продукта, данные по которому должны найти позже
-            if (entity.getProductId() == null) {
-                entity.setProductId(nomenclature);
+            for (Long id : nomenclaturesId) {
+                //  Сначала ищем в БД
+                ProductEntity nomenclature = productRepository
+                        .findByProductId(id)
+
+                        // Если не нашли, то ищем среди новых
+                        .orElseGet(() -> products
+                                .stream()
+                                .filter(p -> Objects.equals(p.getProductId(), id))
+                                .findAny()
+
+                                // Иначе - создаем новый
+                                .orElseGet(() -> new ProductEntity().setProductId(id)));
+
+                // Сохраняем в кеш, привязываем к продукту и закидываем в пулл продуктов
+                // TODO
+                var saved = productRepository.save(nomenclature);
+                product.getNomenclatures().add(saved);
+                products.add(saved);
             }
-
-            // TODO дубликаты
-            product.getNomenclatures().add(entity);
         }
     }
 
